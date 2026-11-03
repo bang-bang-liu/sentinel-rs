@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+exec /opt/sentinel-relogin/current/bin/sentinel-relogin serve \
+  --env-file /opt/sentinel-relogin/.env "$@"
