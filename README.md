@@ -24,6 +24,25 @@ OpenAI 注册链路中 **Sentinel token** 的 Rust 重实现，加上一套可�
 | `src/ffi.rs` | C ABI（`cdylib`），给 Python ctypes / C# / Go 调用 |
 | `src/main.rs` | CLI：`mint` / `register` |
 | `tools/mock_mail.py` | 自建邮箱服务参考实现（mock），用来验证邮箱契约 |
+| `tools/relogin/` | 独立单账号重登工具：桌面 UI、密码登录、按需邮箱验证及 2FA |
+| `tools/offers/` | 独立优惠看板：只读账号库，查询 Plus 免费试用和半价活动 |
+
+## 独立工具
+
+注册程序、重登工具和优惠看板在同一仓库维护，分别构建和运行。两个工具各自保留
+workspace、`Cargo.lock`、构建产物及配置；根目录的构建命令只构建注册程序。
+
+```bash
+# 从仓库根目录构建独立重登工具
+bash tools/relogin/deploy/build.sh
+
+# 从仓库根目录构建独立优惠看板
+bash tools/offers/deploy/build.sh
+```
+
+重登工具成功后定向更新原账号行；优惠看板只读账号库，结果和查询代理设置写入独立
+`offers.db`。三个程序分别使用自己的配置和 HTTP 客户端。使用说明见
+[重登工具](tools/relogin/README.md)及[优惠看板](tools/offers/README.md)。
 
 ## 构建
 
