@@ -117,6 +117,24 @@ impl Results {
             |r| r.get(0),
         )?)
     }
+    /// Missing means startup default; an empty value explicitly selects direct access.
+    pub fn query_proxy(&self) -> Result<Option<String>> {
+        Ok(self
+            .read()?
+            .query_row(
+                "SELECT value FROM offer_meta WHERE key='query_proxy'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+    pub fn set_query_proxy(&self, proxy: Option<&str>) -> Result<()> {
+        self.connect()?.execute(
+            "INSERT INTO offer_meta(key,value) VALUES('query_proxy',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            [proxy.unwrap_or("")],
+        )?;
+        Ok(())
+    }
     fn connect(&self) -> Result<Connection> {
         let c = Connection::open_with_flags(
             &self.path,

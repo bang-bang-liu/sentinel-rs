@@ -1,6 +1,6 @@
 # Sentinel Offers
 
-按 v1.1 设计开发的独立 Rust 账号优惠查询工具与 Web 看板（程序版本 0.1.0）。
+按 v1.1 设计开发的独立 Rust 账号优惠查询工具与 Web 看板（程序版本 0.1.1）。
 
 读取现有 SQLite 账号库的邮箱、状态和 access_token，查询免费一个月及三种期限的 Plus 半价活动，写入独立 offers.db。源库连接强制只读。无注册、登录刷新、2FA、兑换或支付操作。
 
@@ -20,6 +20,8 @@ Linux 需要 Rust、C/C++、CMake、libclang；执行 `bash deploy/build.sh`。W
 ## 使用
 
 服务只监听 `127.0.0.1:8787`，通过 SSH 隧道访问；页面要求独立管理口令。启动服务和打开页面均不自动查询上游。命令行提供 check、serve、export；CLI 查询和 Web 服务通过写入锁互斥。
+
+看板提供“查询代理”设置，可保存 HTTP / HTTPS / SOCKS5 / SOCKS5H 代理，或切换直连。设置保存在独立结果库中，下一批检测生效，重启后保留；页面只显示脱敏地址。代理由后端服务器连接，失败不会自动直连。
 
 完整操作见 [操作手册](docs/operations.md)，脱敏验证结果见 [验证记录](docs/verification.md)，架构见 [设计文档](docs/design.md)。
 

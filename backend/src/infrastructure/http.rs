@@ -32,6 +32,9 @@ pub fn normalize_proxy_url(raw: &str) -> Result<String> {
     if raw.is_empty() {
         bail!("empty_proxy")
     }
+    if raw.len() > 4096 || raw.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        bail!("invalid_proxy_url")
+    }
     let url = if raw.contains("://") {
         raw.to_owned()
     } else {
@@ -41,6 +44,9 @@ pub fn normalize_proxy_url(raw: &str) -> Result<String> {
         .parse()
         .map_err(|_| anyhow::anyhow!("invalid_proxy_url"))?;
     if uri.host().unwrap_or_default().is_empty()
+        || !matches!(uri.path(), "" | "/")
+        || uri.query().is_some()
+        || url.contains('#')
         || !matches!(
             uri.scheme_str(),
             Some("http" | "https" | "socks5" | "socks5h")
@@ -48,6 +54,7 @@ pub fn normalize_proxy_url(raw: &str) -> Result<String> {
     {
         bail!("invalid_proxy_url")
     }
+    wreq::Proxy::all(url.as_str()).map_err(|_| anyhow::anyhow!("invalid_proxy_url"))?;
     Ok(url)
 }
 

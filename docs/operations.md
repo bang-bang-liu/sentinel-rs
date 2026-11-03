@@ -1,6 +1,6 @@
 # Sentinel Offers 使用与部署
 
-设计版本 v1.1；程序首版 0.1.0。两者是不同的版本号。构建和线上实测结论记录在 `verification.md`。
+设计版本 v1.1；当前程序版本 0.1.1。两者是不同的版本号。构建和线上实测结论记录在 `verification.md`。
 
 ## 目录与边界
 
@@ -91,7 +91,13 @@ OFFERS_HTTP_EMULATION=Chrome149
 OFFERS_LOG=info
 ```
 
-留空表示直连。需要代理时在本工具自己的文件中设置 `http://`、`https://`、`socks5://` 或 `socks5h://` URL。进程中的同名 OFFERS 环境变量优先于配置文件，CLI `--proxy` 优先，`--direct` 强制直连。不读取 SENTINEL_*、TURB_*、HTTP_PROXY、HTTPS_PROXY、ALL_PROXY 或原项目 .env。
+看板中的“查询代理”可展开填写代理地址，点击“保存代理”后，从下一次手动检测生效。支持 `http://`、`https://`、`socks5://`、`socks5h://`，可带代理用户名和密码；只有 `host:port` 时按 HTTP 处理。点击“切换直连”保存直连模式。保存只校验地址格式，不发起网络检测，也不创建优惠任务。
+
+代理由运行查询后端的机器连接。远程部署时，`127.0.0.1` 指远程机器自身，不能直接指向浏览器所在电脑的本地代理。
+
+看板设置存入独立 `offers.db` 的 `offer_meta.query_proxy`，重启后保留；不会写回源账号库、原项目配置或本工具的 `.env`。数据库可能包含代理认证信息，应按私有配置保管。API 和页面只回显去掉用户名、密码的代理地址，输入框保存后清空；浏览器不持久化代理凭据。每批任务启动时取得设置快照，修改不改变运行中的任务。代理故障沿用查询失败重试与 unknown 规则，不自动回退直连。
+
+优先级：CLI `check --proxy` / `check --direct` > 看板已保存设置 > 启动 `--proxy` / `--direct` > OFFERS 进程环境 > 本工具配置文件。没有保存过看板设置时，空 `OFFERS_PROXY` 表示直连；在看板切换直连后，重启仍直连。`serve` 的启动参数作为初始默认值，后续可以由看板覆盖。不读取 SENTINEL_*、TURB_*、HTTP_PROXY、HTTPS_PROXY、ALL_PROXY 或原项目 .env。
 
 每个账号单独创建客户端和 Cookie Jar。请求顺序执行，间隔 1 秒，单次超时 20 秒，每项最多 3 次；不重复叠加传输层重试。Retry-After 超过 60 秒或重试耗尽后停止本批次，将冷却时间存入结果库。重启不会自动重跑中断任务。
 
@@ -103,7 +109,7 @@ OFFERS_LOG=info
 cd /opt/sentinel-offers/source
 bash deploy/build.sh
 # 使用一个全新 release 名称，禁止覆盖旧版本
-sudo bash deploy/install.sh 0.1.0-YYYYMMDD-HHMMSS
+sudo bash deploy/install.sh 0.1.1-YYYYMMDD-HHMMSS
 systemctl enable --now sentinel-offers
 ```
 

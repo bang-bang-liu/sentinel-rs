@@ -6,6 +6,7 @@ use sentinel_offers::{
     application::{
         checker::{probe_with, retry_after},
         config::Config,
+        network,
         service::Service,
     },
     domain::{
@@ -505,6 +506,285 @@ fn independent_environment_and_dry_run_create_no_state() {
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.contains("first@example.invalid"));
     assert!(!text.contains("SECRET"));
+}
+
+#[tokio::test]
+async fn proxy_settings_are_authenticated_validated_persistent_and_redacted() {
+    let f = Fixture::new();
+    let source_before = std::fs::read(f.config.source_db.as_ref().unwrap()).unwrap();
+    let service = Service::new(f.config.clone(), f.source.clone(), f.results.clone());
+    let router = api::router(service, "a".repeat(64));
+    let request = |method: &str, body: serde_json::Value, auth: bool, origin: Option<&str>| {
+        let mut builder = Request::builder()
+            .method(method)
+            .uri("/api/settings/proxy")
+            .header("Host", "127.0.0.1:8787")
+            .header("Content-Type", "application/json");
+        if auth {
+            builder = builder.header("Authorization", format!("Bearer {}", "a".repeat(64)));
+        }
+        if let Some(origin) = origin {
+            builder = builder.header("Origin", origin);
+        }
+        builder.body(Body::from(body.to_string())).unwrap()
+    };
+    let direct = serde_json::json!({"mode":"direct"});
+    for method in ["GET", "PUT"] {
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(request(method, direct.clone(), false, None))
+                .await
+                .unwrap()
+                .status(),
+            401
+        );
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(request(
+                    method,
+                    direct.clone(),
+                    true,
+                    Some("https://other.invalid")
+                ))
+                .await
+                .unwrap()
+                .status(),
+            403
+        );
+    }
+    assert_eq!(f.results.query_proxy().unwrap(), None);
+    for scheme in ["http", "https", "socks5", "socks5h"] {
+        let credentials = ["fixture-user", "fixture-secret"].join(":");
+        let authority = [credentials.as_str(), "example.invalid:8080"].join("@");
+        let proxy = format!("{scheme}://{authority}");
+        let response = router
+            .clone()
+            .oneshot(request(
+                "PUT",
+                serde_json::json!({"mode":"proxy","proxy":proxy}),
+                true,
+                None,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let text = std::str::from_utf8(&bytes).unwrap();
+        assert!(!text.contains("fixture-user") && !text.contains("fixture-secret"));
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["mode"], "proxy");
+        assert_eq!(
+            body["display"],
+            format!("{scheme}://***@example.invalid:8080")
+        );
+        assert_eq!(body["source"], "dashboard");
+        assert_eq!(f.results.query_proxy().unwrap(), Some(proxy));
+    }
+    let saved = f.results.query_proxy().unwrap();
+    for proxy in [
+        "",
+        "  ",
+        "ftp://proxy.example.invalid:21",
+        "http://",
+        "http://proxy.example.invalid/secret",
+        "http://proxy.example.invalid?secret=x",
+        "http://proxy.example.invalid#fragment",
+        "http://proxy.example.invalid:80\n80",
+        "http://bad host:8080",
+    ] {
+        let response = router
+            .clone()
+            .oneshot(request(
+                "PUT",
+                serde_json::json!({"mode":"proxy","proxy":proxy}),
+                true,
+                None,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 400);
+        assert_eq!(f.results.query_proxy().unwrap(), saved);
+    }
+    for body in [
+        serde_json::json!({"mode":"proxy"}),
+        serde_json::json!({"mode":"other"}),
+        serde_json::json!({"mode":"direct","proxy":"proxy.example.invalid:8080"}),
+    ] {
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(request("PUT", body, true, None))
+                .await
+                .unwrap()
+                .status(),
+            400
+        );
+        assert_eq!(f.results.query_proxy().unwrap(), saved);
+    }
+    let reader = Results::reader(&f.config.results_db).unwrap();
+    assert_eq!(network::settings(&f.config, &reader).unwrap().mode, "proxy");
+    let response = router
+        .clone()
+        .oneshot(request("GET", serde_json::Value::Null, true, None))
+        .await
+        .unwrap();
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let text = String::from_utf8(
+        response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(!text.contains("fixture-user") && !text.contains("fixture-secret"));
+    assert_eq!(
+        router
+            .oneshot(request("PUT", direct, true, None))
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    assert_eq!(reader.query_proxy().unwrap(), Some(String::new()));
+    assert_eq!(
+        network::settings(&f.config, &reader).unwrap().mode,
+        "direct"
+    );
+    assert!(f.results.tasks().unwrap().is_empty());
+    assert_eq!(
+        std::fs::read(f.config.source_db.as_ref().unwrap()).unwrap(),
+        source_before
+    );
+    drop(f._lock);
+    let (restarted, _lock) = Results::writer(&f.config.results_db, &f.source.key()).unwrap();
+    assert_eq!(
+        network::settings(&f.config, &restarted).unwrap().mode,
+        "direct"
+    );
+}
+
+#[test]
+fn proxy_snapshots_and_explicit_cli_overrides_are_independent() {
+    let f = Fixture::new();
+    let mut config = f.config.clone();
+    config.proxy = Some("http://startup.example.invalid:8080".into());
+    assert_eq!(
+        network::snapshot(&config, &f.results).unwrap().0.proxy,
+        config.proxy
+    );
+    f.results
+        .set_query_proxy(Some("socks5h://first.example.invalid:1080"))
+        .unwrap();
+    let (first_task, source) = network::snapshot(&config, &f.results).unwrap();
+    assert_eq!(source, "dashboard");
+    f.results
+        .set_query_proxy(Some("http://second.example.invalid:8080"))
+        .unwrap();
+    assert_eq!(
+        first_task.proxy.as_deref(),
+        Some("socks5h://first.example.invalid:1080")
+    );
+    assert_eq!(
+        network::snapshot(&config, &f.results)
+            .unwrap()
+            .0
+            .proxy
+            .as_deref(),
+        Some("http://second.example.invalid:8080")
+    );
+    f.results.set_query_proxy(None).unwrap();
+    assert!(network::snapshot(&config, &f.results)
+        .unwrap()
+        .0
+        .proxy
+        .is_none());
+    config.command = "check".into();
+    config.proxy_explicit = true;
+    assert_eq!(
+        network::snapshot(&config, &f.results).unwrap().0.proxy,
+        config.proxy
+    );
+    config.proxy = None;
+    f.results
+        .set_query_proxy(Some("http://saved.example.invalid:8080"))
+        .unwrap();
+    assert!(network::snapshot(&config, &f.results)
+        .unwrap()
+        .0
+        .proxy
+        .is_none());
+}
+
+#[tokio::test]
+async fn saved_proxy_routes_http_and_https_without_direct_fallback() {
+    use sentinel_offers::application::checker;
+    use std::io::{Read, Write};
+    use std::time::{Duration, Instant};
+    let f = Fixture::new();
+    let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    target.set_nonblocking(true).unwrap();
+    let target_address = target.local_addr().unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let credentials = ["fixture-user", "fixture-secret"].join(":");
+    let proxy = format!("http://{credentials}{}{address}", '@');
+    f.results.set_query_proxy(Some(&proxy)).unwrap();
+    let (snapshot, _) = network::snapshot(&f.config, &f.results).unwrap();
+    let server = std::thread::spawn(move || {
+        let mut seen = vec![];
+        for _ in 0..2 {
+            let deadline = Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(e)
+                        if e.kind() == std::io::ErrorKind::WouldBlock
+                            && Instant::now() < deadline =>
+                    {
+                        std::thread::sleep(Duration::from_millis(5))
+                    }
+                    Err(e) => panic!("proxy fixture accept: {e}"),
+                }
+            };
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut bytes = Vec::new();
+            let mut chunk = [0u8; 1024];
+            while !bytes.windows(4).any(|b| b == b"\r\n\r\n") {
+                let n = stream.read(&mut chunk).unwrap();
+                assert!(n > 0);
+                bytes.extend_from_slice(&chunk[..n]);
+            }
+            seen.push(String::from_utf8(bytes).unwrap().to_lowercase());
+            stream
+                .write_all(
+                    b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        }
+        seen
+    });
+    // Snapshot remains on the chosen proxy after later settings switch to direct.
+    f.results.set_query_proxy(None).unwrap();
+    let client = checker::client(&snapshot).unwrap();
+    let http = RequestSpec::get("proxy-test", format!("http://{target_address}/probe"));
+    assert_eq!(client.execute(&http).await.unwrap().status, 502);
+    let https = RequestSpec::get("proxy-test", format!("https://{target_address}/probe"));
+    assert!(client.execute(&https).await.is_err());
+    let seen = server.join().unwrap();
+    assert!(seen[0].starts_with(&format!("get http://{target_address}/probe ")));
+    assert!(seen[1].starts_with(&format!("connect {target_address} ")));
+    assert!(seen
+        .iter()
+        .all(|request| request.contains("proxy-authorization: basic ")));
+    assert!(matches!(target.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
 }
 
 #[tokio::test]

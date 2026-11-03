@@ -1,10 +1,13 @@
 use crate::{
-    application::service::{blocking, Service},
+    application::{
+        network,
+        service::{blocking, Service},
+    },
     domain::{
         campaign::Eligibility,
         model::{now, Summary},
     },
-    infrastructure::{export, results::private_file},
+    infrastructure::{export, http::normalize_proxy_url, results::private_file},
 };
 use axum::{
     body::Body,
@@ -82,6 +85,7 @@ pub fn router(service: Arc<Service>, token: String) -> Router {
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/api/accounts", get(accounts))
         .route("/api/accounts/{id}/offers", get(account))
+        .route("/api/settings/proxy", get(proxy_settings).put(save_proxy))
         .route("/api/tasks", get(tasks).post(create_task))
         .route("/api/tasks/{id}", get(task))
         .route("/api/tasks/{id}/export", get(export_task))
@@ -151,6 +155,42 @@ async fn guard(State(state): State<ApiState>, req: Request, next: Next) -> Respo
 type ApiResult = Result<Response, Response>;
 fn internal(_: anyhow::Error) -> Response {
     error(StatusCode::INTERNAL_SERVER_ERROR, "storage_unavailable")
+}
+
+async fn proxy_settings(State(state): State<ApiState>) -> ApiResult {
+    let service = state.service;
+    Ok(Json(
+        blocking(move || network::settings(&service.config, &service.results))
+            .await
+            .map_err(internal)?,
+    )
+    .into_response())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveProxy {
+    mode: String,
+    proxy: Option<String>,
+}
+
+async fn save_proxy(State(state): State<ApiState>, Json(body): Json<SaveProxy>) -> ApiResult {
+    let proxy = match (body.mode.as_str(), body.proxy) {
+        ("proxy", Some(raw)) => Some(
+            normalize_proxy_url(&raw)
+                .map_err(|_| error(StatusCode::BAD_REQUEST, "invalid_proxy_url"))?,
+        ),
+        ("direct", None) => None,
+        _ => return Err(error(StatusCode::BAD_REQUEST, "invalid_proxy_settings")),
+    };
+    let service = state.service;
+    let settings = blocking(move || {
+        service.results.set_query_proxy(proxy.as_deref())?;
+        network::settings(&service.config, &service.results)
+    })
+    .await
+    .map_err(internal)?;
+    Ok(Json(settings).into_response())
 }
 
 #[derive(Default, Deserialize)]
@@ -284,7 +324,10 @@ async fn create_task(State(state): State<ApiState>, Json(body): Json<CreateTask>
                 "select_all_or_account_ids"
                 | "invalid_account_ids"
                 | "account_not_found"
-                | "no_accounts_selected" => Err(error(StatusCode::BAD_REQUEST, &code)),
+                | "no_accounts_selected"
+                | "invalid_proxy"
+                | "invalid_proxy_url"
+                | "empty_proxy" => Err(error(StatusCode::BAD_REQUEST, &code)),
                 "service_stopping" => Err(error(StatusCode::SERVICE_UNAVAILABLE, &code)),
                 _ => Err(internal(e)),
             }

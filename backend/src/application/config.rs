@@ -11,6 +11,7 @@ pub struct Config {
     pub source_db: Option<PathBuf>,
     pub results_db: PathBuf,
     pub proxy: Option<String>,
+    pub proxy_explicit: bool,
     pub emulation: Option<String>,
     pub listen: SocketAddr,
     pub admin_token_file: PathBuf,
@@ -24,7 +25,7 @@ pub struct Config {
     pub log: String,
 }
 
-pub const HELP:&str="sentinel-offers 0.1.0\n\nUsage:\n  sentinel-offers check --source-db PATH --results-db PATH (--all | --account-id ID...) [--dry-run]\n  sentinel-offers serve --source-db PATH --results-db PATH [--listen 127.0.0.1:8787]\n  sentinel-offers export --results-db PATH --task-id ID --format csv|json --output PATH\n\nOptions: --env-file PATH  --proxy URL  --direct  --admin-token-file PATH  --overwrite\nConfiguration: OFFERS_PROXY, OFFERS_HTTP_EMULATION, OFFERS_LOG.\nStarting the dashboard never starts a check. The source database is read-only.";
+pub const HELP:&str="sentinel-offers 0.1.1\n\nUsage:\n  sentinel-offers check --source-db PATH --results-db PATH (--all | --account-id ID...) [--dry-run]\n  sentinel-offers serve --source-db PATH --results-db PATH [--listen 127.0.0.1:8787]\n  sentinel-offers export --results-db PATH --task-id ID --format csv|json --output PATH\n\nOptions: --env-file PATH  --proxy URL  --direct  --admin-token-file PATH  --overwrite\nConfiguration: OFFERS_PROXY, OFFERS_HTTP_EMULATION, OFFERS_LOG.\nStarting the dashboard never starts a check. The source database is read-only.";
 
 pub fn normalized(path: &Path) -> Result<PathBuf> {
     let absolute = if path.is_absolute() {
@@ -227,6 +228,7 @@ impl Config {
             source_db,
             results_db,
             proxy,
+            proxy_explicit: has("--direct") || values.contains_key("--proxy"),
             emulation,
             listen,
             admin_token_file,

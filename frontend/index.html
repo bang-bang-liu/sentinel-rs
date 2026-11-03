@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="/styles.css"><script src="/app.js" type="module"></script>
 </head>
 <body>
-  <header class="topbar"><a class="brand" href="/"><span class="mark" aria-hidden="true">S</span><span>Sentinel <strong>Offers</strong></span><small>v0.1.0</small></a><div class="top-actions"><span class="source-badge">账号库只读</span><button id="logout" class="top-button" hidden>锁定看板</button></div></header>
+  <header class="topbar"><a class="brand" href="/"><span class="mark" aria-hidden="true">S</span><span>Sentinel <strong>Offers</strong></span><small>v0.1.1</small></a><div class="top-actions"><span class="source-badge">账号库只读</span><button id="logout" class="top-button" hidden>锁定看板</button></div></header>
   <main>
     <section id="login" class="login-panel" aria-labelledby="login-title">
       <p class="eyebrow">独立账号优惠工具</p><h1 id="login-title">查看账号的 Plus 优惠</h1>
@@ -26,6 +26,18 @@
         <div><span>缺少凭据</span><strong id="stat-missing">—</strong><small>未保存访问令牌</small></div>
       </section>
       <p class="stats-note">统计采用每个账号的最近一次任务结果；免费与半价可能同时符合。未检测、检测中或请求失败均属于待确认。</p>
+      <details id="proxy-settings" class="network-panel">
+        <summary><strong>查询代理</strong><span id="proxy-current" class="network-current">正在读取设置…</span><span class="network-toggle">设置</span></summary>
+        <div class="network-content">
+          <form id="proxy-form" class="proxy-form">
+            <div class="proxy-field"><label for="proxy-url">代理地址</label><input id="proxy-url" name="query-proxy" type="password" autocomplete="off" spellcheck="false" maxlength="4096" required disabled placeholder="http://host:port 或 socks5h://host:port" aria-describedby="proxy-hint proxy-feedback"></div>
+            <button id="save-proxy" type="submit" class="primary" disabled>保存代理</button><button id="direct-proxy" type="button" disabled>切换直连</button>
+          </form>
+          <p id="proxy-hint" class="network-hint">支持 HTTP、HTTPS、SOCKS5、SOCKS5H；可包含用户名与密码。地址填查询服务所在机器能够访问的代理，127.0.0.1 指该机器自身。</p>
+          <p class="network-hint">设置保存后从下一次检测起生效，当前任务保持原出口。已保存的地址不会完整回显；修改时重新输入。代理失败不会自动直连。</p>
+          <p id="proxy-feedback" class="network-feedback" role="status" aria-live="polite"></p>
+        </div>
+      </details>
       <section id="progress-panel" class="progress-panel" hidden aria-label="任务进度"><div class="progress-title"><strong id="progress-title">正在检测</strong><span id="progress-count"></span></div><progress id="task-progress" max="100" value="0"></progress><div class="progress-foot"><span id="progress-detail"></span><span>依次查询 · 自动保存结果</span></div></section>
       <section class="accounts-panel" aria-label="账号列表">
         <div class="list-heading"><h2>账号列表 <span id="filtered-count"></span></h2><button id="refresh" class="quiet">刷新记录</button></div>

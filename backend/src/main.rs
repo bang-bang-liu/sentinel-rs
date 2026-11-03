@@ -103,9 +103,10 @@ async fn run(config: Config) -> Result<u8> {
         );
         return Ok(0);
     }
-    // Validate transport configuration before creating a task or serving requests.
-    sentinel_offers::application::checker::client(&config)?;
     let (results, _lock) = Results::writer(&config.results_db, &source.key())?;
+    // Saved dashboard settings take precedence over startup defaults.
+    let (effective, _) = sentinel_offers::application::network::snapshot(&config, &results)?;
+    sentinel_offers::application::checker::client(&effective)?;
     let service = Service::new(config.clone(), source, results);
     if config.command == "serve" {
         let token = api::admin_token(&config.admin_token_file)

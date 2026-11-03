@@ -1,4 +1,4 @@
-use super::{checker, config::Config};
+use super::{checker, config::Config, network};
 use crate::{
     domain::{
         campaign::{valid_token, Outcome, COUPONS},
@@ -67,6 +67,13 @@ impl Service {
         if accounts.is_empty() {
             bail!("no_accounts_selected")
         }
+        let service = self.clone();
+        let query_config = blocking(move || {
+            let (config, _) = network::snapshot(&service.config, &service.results)?;
+            checker::client(&config)?;
+            Ok(config)
+        })
+        .await?;
         let results = self.results.clone();
         let key = self.source.key();
         let selected = accounts.clone();
@@ -74,7 +81,7 @@ impl Service {
         let service = self.clone();
         let task_id = id.clone();
         tokio::spawn(async move {
-            if service.run(&task_id, accounts).await.is_err() {
+            if service.run(&task_id, accounts, query_config).await.is_err() {
                 let result = service.results.clone();
                 let task = task_id.clone();
                 let _ = blocking(move || {
@@ -87,7 +94,7 @@ impl Service {
         });
         Ok(id)
     }
-    async fn run(&self, id: &str, accounts: Vec<Account>) -> Result<()> {
+    async fn run(&self, id: &str, accounts: Vec<Account>, query_config: Config) -> Result<()> {
         let result = self.results.clone();
         let task = id.to_owned();
         blocking(move || result.start_task(&task)).await?;
@@ -107,7 +114,7 @@ impl Service {
                 _ => None,
             };
             let client = if skip.is_none() {
-                Some(checker::client(&self.config)?)
+                Some(checker::client(&query_config)?)
             } else {
                 None
             };
