@@ -8,6 +8,8 @@ pub struct Config {
     pub proxy: Option<String>,
     pub mail_map_file: PathBuf,
     pub mail_api_token: Option<String>,
+    pub mail_resolve_url: Option<String>,
+    pub mail_resolve_token: Option<String>,
     pub otp_max_wait: Duration,
     pub otp_poll_interval: Duration,
     pub admin_token_file: PathBuf,
@@ -57,6 +59,8 @@ impl Config {
                 .unwrap_or_else(|| "data/mail-map.json".into())
                 .into(),
             mail_api_token: get("LOGIN_MAIL_API_TOKEN"),
+            mail_resolve_url: get("LOGIN_MAIL_RESOLVE_URL"),
+            mail_resolve_token: get("LOGIN_MAIL_RESOLVE_TOKEN"),
             otp_max_wait: seconds("LOGIN_OTP_MAX_WAIT", 180)?,
             otp_poll_interval: seconds("LOGIN_OTP_POLL_INTERVAL", 3)?,
             admin_token_file: get("LOGIN_ADMIN_TOKEN_FILE")

@@ -5,7 +5,7 @@
 ## 模块
 
 - `backend/src/login/`：密码登录、条件邮箱/TOTP 挑战、回调、session 和按需补绑 2FA。
-- `backend/src/mail/`：重登专用 JSON 映射与直连取码读取器，登录明确要求邮箱验证码时才读取。
+- `backend/src/mail/`：重登专用 API 解析、可选 JSON 映射与直连取码读取器，登录明确要求邮箱验证码时才调用。
 - `backend/src/accounts.rs`：读取原账号库并按 ID 更新同一行，不创建账号、不迁移表。
 - `backend/src/tasks.rs`：内存任务及单任务门控，重启后记录清空。
 - `frontend/`：普通 HTML/CSS/JavaScript，仅桌面布局，编译进新二进制。
@@ -45,6 +45,8 @@ node tools/relogin/frontend/tests/ui-smoke.cjs
 | `LOGIN_PROXY` | 认证链 HTTP/SOCKS 代理，空值直连 |
 | `LOGIN_MAIL_MAP_FILE` | 重登专用 JSON 文件路径 |
 | `LOGIN_MAIL_API_TOKEN` | 取码 GET 请求可选 Bearer 口令 |
+| `LOGIN_MAIL_RESOLVE_URL` | Workbench 重登签发接口完整 URL；为空时保留 JSON 文件模式 |
+| `LOGIN_MAIL_RESOLVE_TOKEN` | 仅供签发 POST 使用的专用密钥，与注册密钥分开 |
 | `LOGIN_OTP_MAX_WAIT` / `LOGIN_OTP_POLL_INTERVAL` | 邮箱取码最长等待/轮询秒数，默认 `180` / `3` |
 | `LOGIN_ADMIN_TOKEN_FILE` | 独立管理口令文件，不存在时随机生成 |
 | `LOGIN_LOG` | `error/warn/info/debug/trace`；只记录本工具阶段摘要 |
@@ -55,7 +57,22 @@ tools/relogin/target/release/sentinel-relogin serve --env-file /path/to/login.en
 
 UI 口令文件在 Linux 要求 `0600`。口令仅保存在当前浏览器会话存储中，退出管理后清除。API 不返回密码、Token、TOTP 密钥、Cookie、取码地址或代理凭据。
 
-## 邮箱映射
+## 自动获取取码地址（0.1.1）
+
+在 Workbench 配置独立的 `MAIL_API_RELOGIN_TOKEN`，在重登工具自己的私有配置中设置：
+
+```dotenv
+LOGIN_MAIL_RESOLVE_URL=https://mail.example.invalid/api/v1/relogin/mailboxes/resolve
+LOGIN_MAIL_RESOLVE_TOKEN=<与Workbench重登接口密钥一致>
+```
+
+明确收到邮箱挑战后，读取器向该接口 POST `{"email":"当前账号邮箱"}`，取得本轮 `email`、`code_url` 和 UTC `expires_at`；检查邮箱一致、链接来源一致且尚未过期。签发接口使用 HTTPS，支持回环 HTTP 联调，不跟随重定向。
+
+随后读取链接记录基线，执行现有登录 resend，并轮询同一链接。每轮挑战只签发一次，下次重登重新签发。API 模式不读取 JSON，也不把 `LOGIN_MAIL_RESOLVE_TOKEN` 或旧 `LOGIN_MAIL_API_TOKEN` 发送给取码 GET；邮箱始终直连。没有邮箱挑战时不访问这些接口，也不要求密钥存在。
+
+Workbench 按已有账号/标签范围查找邮箱，签发不会消耗新库存、改变邮箱状态或轮换原链接。URL 已配置时若密钥缺失、邮箱不可用或接口失败，当前任务提示失败，保留旧账号凭据，不回退文件。用户无需维护逐账号映射；未入库或范围外邮箱需在 Workbench 处理基础数据。
+
+## 原文件映射模式
 
 JSON 对象按邮箱精确匹配，示例只含虚构地址：
 
@@ -65,7 +82,7 @@ JSON 对象按邮箱精确匹配，示例只含虚构地址：
 
 仅进入邮箱挑战时读取文件，每次重新读取。修改 JSON 后下一次挑战立即使用新映射；不改变注册邮箱接口。读取器先记录旧验证码，再请求登录 OTP resend，随后等待新验证码，最后提交登录验证码。
 
-支持原取码页 `<article>` / `class="meta"` / `class="code"` 格式，或纯六位码，或 JSON `{"code":"123456"}` / `{"otp":"123456"}`（也支持 `data` 对象下这两个字段）。HTML 卡片按时间/基线过滤；纯文本或 JSON 必须出现与基线不同的验证码。取码 URL 直接返回正文，不跟随重定向。未来映射接口变化只需替换 `mail/mapping.rs`；正文格式变化只改 `reader.rs`。
+支持原取码页 `<article>` / `class="meta"` / `class="code"` 格式，或纯六位码，或 JSON `{"code":"123456"}` / `{"otp":"123456"}`（也支持 `data` 对象下这两个字段）。HTML 卡片按时间/基线过滤；纯文本或 JSON 必须出现与基线不同的验证码。取码 URL 直接返回正文，不跟随重定向。Workbench 原领取链接只有一小时有效期，不适合长期静态映射；自动模式由 `mail/resolver.rs` 负责。
 
 ## 登录与保存约定
 

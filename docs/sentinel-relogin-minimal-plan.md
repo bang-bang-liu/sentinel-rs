@@ -6,6 +6,8 @@
 
 状态：已按本计划实施。实际部署、验证和限制见[实施记录](../tools/relogin/VERIFICATION.md)，下文保留计划基线。
 
+后续邮箱自动解析方案见[重登自动获取邮箱取码地址：最小变更计划书](sentinel-relogin-auto-mail-plan.md)，已在 0.1.1 实施，实际范围见上述实施记录。
+
 ## 1. 目标与方案
 
 在 `sentinel-rs` 仓库内增加独立工具 `sentinel-relogin`：用户在桌面 Web UI 搜索并指定已有账号，执行密码登录，按登录响应处理邮箱验证码或已有 TOTP 验证，必要时补绑 2FA，最后更新原账号的 Access Token、Cookie 等字段。

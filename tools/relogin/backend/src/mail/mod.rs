@@ -1,5 +1,6 @@
 pub mod mapping;
 pub mod reader;
+pub mod resolver;
 
 use crate::BoxFuture;
 use anyhow::Result;

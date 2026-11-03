@@ -1,4 +1,4 @@
-use super::{mapping, Mailbox};
+use super::{mapping, resolver, Mailbox};
 use crate::{config::Config, BoxFuture};
 use anyhow::{bail, Result};
 use sentinel_rs::flow::otp;
@@ -13,6 +13,8 @@ pub struct MailTicket {
 pub struct FileMailbox {
     map_file: PathBuf,
     token: Option<String>,
+    resolve_url: Option<String>,
+    resolve_token: Option<String>,
     client: wreq::Client,
     max_wait: Duration,
     interval: Duration,
@@ -23,7 +25,10 @@ impl FileMailbox {
         Ok(Self {
             map_file: config.mail_map_file.clone(),
             token: config.mail_api_token.clone(),
+            resolve_url: config.mail_resolve_url.clone(),
+            resolve_token: config.mail_resolve_token.clone(),
             client: wreq::Client::builder()
+                .user_agent(concat!("sentinel-relogin/", env!("CARGO_PKG_VERSION")))
                 .no_proxy()
                 .redirect(wreq::redirect::Policy::none())
                 .timeout(Duration::from_secs(15))
@@ -36,7 +41,7 @@ impl FileMailbox {
 
     async fn fetch(&self, url: &str) -> Result<String> {
         let mut request = self.client.get(url);
-        if let Some(token) = &self.token {
+        if let Some(token) = self.token.as_ref().filter(|_| self.resolve_url.is_none()) {
             request = request.header("authorization", format!("Bearer {token}"));
         }
         let response = request
@@ -44,6 +49,9 @@ impl FileMailbox {
             .await
             .map_err(|_| anyhow::anyhow!("重登邮箱取码请求失败"))?;
         if !response.status().is_success() {
+            if response.status().as_u16() == 410 {
+                bail!("重登邮箱取码链接已过期，请重新发起重登");
+            }
             bail!("重登邮箱取码返回 HTTP {}", response.status().as_u16());
         }
         response
@@ -56,7 +64,13 @@ impl FileMailbox {
 impl Mailbox for FileMailbox {
     fn prepare<'a>(&'a self, email: &'a str) -> BoxFuture<'a, Result<MailTicket>> {
         Box::pin(async move {
-            let url = mapping::resolve(&self.map_file, email)?;
+            let url = match &self.resolve_url {
+                Some(endpoint) => {
+                    resolver::resolve(&self.client, endpoint, self.resolve_token.as_deref(), email)
+                        .await?
+                }
+                None => mapping::resolve(&self.map_file, email)?,
+            };
             let body = self.fetch(&url).await?;
             Ok(MailTicket {
                 url,
