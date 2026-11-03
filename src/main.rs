@@ -326,7 +326,7 @@ fn cmd_register(argv: &[String]) -> Result<()> {
     println!("== 注册配置 ==");
     println!("  模式      : {}", if cfg.dry_run { "dry-run（不联网）" } else { "LIVE（真实联网注册）" });
     println!("  数量      : {}", cfg.count);
-    println!("  代理      : {}", cfg.proxy.as_deref().unwrap_or("<直连>"));
+    println!("  代理      : {}", flow::http::proxy_for_log(cfg.proxy.as_deref()));
     println!(
         "  邮箱 API  : {}",
         cfg.email_api
@@ -334,6 +334,7 @@ fn cmd_register(argv: &[String]) -> Result<()> {
             .map(|api| api.base_url.as_str())
             .unwrap_or("<未配置：REG_MAIL_API_BASE_URL>")
     );
+    println!("  邮箱连接  : 直连（不使用注册代理或系统代理）");
     println!("  2FA       : {}", if cfg.enable_2fa { "enroll+activate" } else { "关闭" });
     println!("  数据库    : {}", cfg.db_path.display());
     println!("  取码超时  : {}s（间隔 {}s）", cfg.otp_max_wait_secs, cfg.otp_poll_interval_secs);

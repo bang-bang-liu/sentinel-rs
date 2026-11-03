@@ -535,6 +535,29 @@ fn http_retry_policy_and_proxy_normalization() {
 }
 
 #[test]
+fn proxy_logs_hide_credentials() {
+    assert_eq!(http::proxy_for_log(None), "<直连>");
+    assert_eq!(http::proxy_for_log(Some("  ")), "<直连>");
+    for proxy in [
+        "http://private-user:p%40ss@proxy.example:8000",
+        "socks5h://private-user:pass@proxy.example:8000",
+        "private-user:pass@proxy.example:8000",
+    ] {
+        let logged = http::proxy_for_log(Some(proxy));
+        assert!(logged.contains("<redacted>@proxy.example:8000"));
+        assert!(!logged.contains("private-user"));
+        assert!(!logged.contains("pass"));
+        assert!(!logged.contains("p%40ss"));
+    }
+    assert_eq!(http::proxy_for_log(Some("http://127.0.0.1:7890")), "http://127.0.0.1:7890");
+    let error = http::normalize_proxy_url("http://private-user:private-password@bad host:8000")
+        .unwrap_err();
+    let logged = format!("{error:#}");
+    assert!(!logged.contains("private-user"));
+    assert!(!logged.contains("private-password"));
+}
+
+#[test]
 fn http_request_spec_headers_and_redaction() {
     let mut spec = RequestSpec::get("demo", "https://example.invalid/x")
         .with_headers(vec![("accept".to_string(), "application/json".to_string())]);

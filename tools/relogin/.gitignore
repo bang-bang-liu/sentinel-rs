@@ -1,0 +1,11 @@
+/target/
+/.env
+**/*.env
+/data/
+**/admin.token
+**/mail-map.json
+**/mail-map.*.json
+!**/mail-map.example.json
+**/*.db
+**/*.db-*
+/frontend/tests/artifacts/

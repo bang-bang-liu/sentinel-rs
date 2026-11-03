@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Sentinel · 账号重登</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Sentinel 账号重登首页"><span class="mark">S</span>sentinel <span class="brand-divider">/</span> <strong>账号重登</strong></a>
+    <div class="top-actions"><span class="version">v0.1.0</span><button id="logout" class="top-button" hidden>退出管理</button></div>
+  </header>
+  <section id="login-panel" class="login-panel" aria-labelledby="login-title">
+    <p class="eyebrow">ACCOUNT ACCESS</p>
+    <h1 id="login-title">管理账号登录凭据</h1>
+    <p class="muted">搜索已有账号，指定单个账号重新登录，更新 Access Token 与 Cookie。</p>
+    <form id="login-form">
+      <label for="admin-token">管理口令</label>
+      <input id="admin-token" type="password" autocomplete="current-password" required placeholder="输入重登工具的管理口令">
+      <button class="primary" id="login-submit" type="submit">进入账号管理 <span aria-hidden="true">→</span></button>
+    </form>
+    <p id="login-error" class="error-text" role="alert"></p>
+    <p class="login-note"><span class="dot"></span>通过 SSH 隧道连接本机管理服务</p>
+  </section>
+  <main id="dashboard" hidden>
+    <div class="page-heading">
+      <div><p class="eyebrow">ACCOUNT ACCESS</p><h1>账号重新登录</h1><p class="muted">选择一个账号，刷新登录凭据。没有 TOTP 密钥的账号将在登录后补绑 2FA。</p></div>
+      <div class="connection"><span class="dot"></span>本地管理连接<span>单账号执行 · 手动触发</span></div>
+    </div>
+    <p id="notice" class="notice" role="alert" hidden></p>
+    <div class="workspace">
+      <section class="accounts-panel" aria-labelledby="accounts-title">
+        <div class="panel-heading"><h2 id="accounts-title">账号列表 <span id="total">—</span></h2><button id="refresh" class="quiet">刷新列表</button></div>
+        <form id="search-form" class="filters" role="search">
+          <div class="search-field"><label for="email-search">邮箱关键词</label><input id="email-search" type="search" placeholder="搜索邮箱" maxlength="256"></div>
+          <div class="id-field"><label for="id-search">账号 ID</label><input id="id-search" type="number" min="1" step="1" placeholder="精确 ID"></div>
+          <button type="submit">查询</button><button id="reset-search" type="button" class="quiet">重置</button>
+        </form>
+        <div class="table-scroll"><table>
+          <thead><tr><th>ID / 邮箱</th><th>账号状态</th><th>登录凭据</th><th>2FA</th><th>更新时间</th><th class="action-column">操作</th></tr></thead>
+          <tbody id="account-rows"></tbody>
+        </table></div>
+        <div id="list-empty" class="empty" hidden><strong>没有匹配的账号</strong><p>调整邮箱关键词或账号 ID 后再次查询。</p></div>
+        <div class="pagination"><span id="page-info">—</span><div><button id="previous">上一页</button><span id="page-number">1</span><button id="next">下一页</button></div></div>
+      </section>
+      <aside class="task-panel" aria-labelledby="task-title">
+        <div class="panel-heading"><h2 id="task-title">当前任务</h2><span id="task-state" class="badge neutral">未执行</span></div>
+        <div id="task-empty" class="task-empty"><span class="task-symbol" aria-hidden="true">↻</span><h3>等待选择账号</h3><p>点击账号行的“重新登录”，这里会显示实际执行阶段与结果。</p></div>
+        <div id="task-content" class="task-content" hidden>
+          <p id="task-account-id" class="task-account-id"></p><h3 id="task-email"></h3><p id="task-start" class="task-start"></p>
+          <ol id="stage-list" class="stage-list" aria-label="执行阶段"></ol>
+          <div id="task-result" class="task-result" role="status" aria-live="polite"></div>
+          <button id="retry-status" class="quiet" hidden>重新获取任务进度</button>
+        </div>
+        <div class="task-note"><strong>凭据更新规则</strong><p>成功后覆盖原账号的 Token 和 Cookie，账号 ID 保持不变。邮箱验证码仅在登录明确要求时读取。</p></div>
+      </aside>
+    </div>
+    <footer><span>Sentinel Relogin · 独立账号管理工具</span><span>每次只运行一个任务</span></footer>
+  </main>
+</body>
+</html>

@@ -156,7 +156,7 @@ impl RegisterConfig {
             .or_else(|| get("all_proxy"));
         if let Some(raw) = &proxy {
             http::normalize_proxy_url(raw).with_context(|| {
-                format!("代理配置无法解析: {raw:?}（期望 host:port 或 scheme://host:port）")
+                format!("代理配置无法解析: {}（期望 host:port 或 scheme://host:port）", http::proxy_for_log(Some(raw)))
             })?;
         }
 
@@ -241,6 +241,11 @@ impl RegisterConfig {
         self.fingerprint
             .as_ref()
             .and_then(|fp| http::parse_emulation(&fp.emulation))
+    }
+
+    /// 邮箱 API 使用独立直连客户端；注册代理及其 Cookie 不进入邮箱链路。
+    pub fn build_mail_http_client(&self) -> Result<http::Client> {
+        http::Client::build_direct(&self.user_agent, http::RetryPolicy::default())
     }
 
     /// 按配置造 auth 请求构造器（有指纹就把 client hints 一并对齐）。
@@ -492,7 +497,8 @@ async fn live_register(
         http::RetryPolicy::default(),
         cfg.emulation_profile(),
     )?;
-    let mail = email::MailApiClient::new(&http, email_api.clone());
+    let mail_http = cfg.build_mail_http_client().context("初始化邮箱 API 直连客户端失败")?;
+    let mail = email::MailApiClient::new(&mail_http, email_api.clone());
 
     // 0) warmup：GET chatgpt.com/api/auth/csrf —— 种 oai-did。
     //    Python run_register 的第一件事，且必须在领邮箱之前拦掉：没有 oai-did 的会话
