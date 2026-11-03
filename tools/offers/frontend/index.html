@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light"><title>Sentinel Offers · 账号优惠看板</title>
+  <link rel="stylesheet" href="/styles.css"><script src="/app.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/"><span class="mark" aria-hidden="true">S</span><span>Sentinel <strong>Offers</strong></span><small>v0.1.1</small></a><div class="top-actions"><span class="source-badge">账号库只读</span><button id="logout" class="top-button" hidden>锁定看板</button></div></header>
+  <main>
+    <section id="login" class="login-panel" aria-labelledby="login-title">
+      <p class="eyebrow">独立账号优惠工具</p><h1 id="login-title">查看账号的 Plus 优惠</h1>
+      <p class="muted">输入此服务的管理口令进入看板。口令仅保存在当前页面内存中，刷新后需要重新输入。</p>
+      <form id="login-form"><label for="admin-token">管理口令</label><input id="admin-token" type="password" autocomplete="off" required maxlength="256" spellcheck="false" placeholder="输入 admin.token 中的口令"><button type="submit" id="unlock" class="primary">进入看板 <span aria-hidden="true">→</span></button></form>
+      <p id="login-error" class="error-text" role="alert"></p>
+      <div class="login-note"><span class="note-dot"></span><p>连接账号库，独立保存结果。进入页面不会自动检测。</p></div>
+    </section>
+    <div id="dashboard" hidden>
+      <section class="page-heading"><div><p class="eyebrow">SENTINEL / OFFERS</p><h1>账号优惠看板</h1><p class="muted">Plus 一个月免费试用与三种期限的半价活动</p></div><div class="connection"><span class="online-dot"></span><span id="connection-text">已连接</span><small id="updated-at"></small></div></section>
+      <div id="notice" class="notice" role="alert" hidden></div>
+      <section class="stats" aria-label="全库账号统计">
+        <div><span>总账号</span><strong id="stat-total">—</strong><small>当前账号库</small></div>
+        <div><span>免费试用符合</span><strong id="stat-free">—</strong><small>一个月免费</small></div>
+        <div><span>半价符合</span><strong id="stat-half">—</strong><small>至少一种期限</small></div>
+        <div><span>待确认</span><strong id="stat-pending">—</strong><small>任一维度尚未确认</small></div>
+        <div><span>缺少凭据</span><strong id="stat-missing">—</strong><small>未保存访问令牌</small></div>
+      </section>
+      <p class="stats-note">统计采用每个账号的最近一次任务结果；免费与半价可能同时符合。未检测、检测中或请求失败均属于待确认。</p>
+      <details id="proxy-settings" class="network-panel">
+        <summary><strong>查询代理</strong><span id="proxy-current" class="network-current">正在读取设置…</span><span class="network-toggle">设置</span></summary>
+        <div class="network-content">
+          <form id="proxy-form" class="proxy-form">
+            <div class="proxy-field"><label for="proxy-url">代理地址</label><input id="proxy-url" name="query-proxy" type="password" autocomplete="off" spellcheck="false" maxlength="4096" required disabled placeholder="http://host:port 或 socks5h://host:port" aria-describedby="proxy-hint proxy-feedback"></div>
+            <button id="save-proxy" type="submit" class="primary" disabled>保存代理</button><button id="direct-proxy" type="button" disabled>切换直连</button>
+          </form>
+          <p id="proxy-hint" class="network-hint">支持 HTTP、HTTPS、SOCKS5、SOCKS5H；可包含用户名与密码。地址填查询服务所在机器能够访问的代理，127.0.0.1 指该机器自身。</p>
+          <p class="network-hint">设置保存后从下一次检测起生效，当前任务保持原出口。已保存的地址不会完整回显；修改时重新输入。代理失败不会自动直连。</p>
+          <p id="proxy-feedback" class="network-feedback" role="status" aria-live="polite"></p>
+        </div>
+      </details>
+      <section id="progress-panel" class="progress-panel" hidden aria-label="任务进度"><div class="progress-title"><strong id="progress-title">正在检测</strong><span id="progress-count"></span></div><progress id="task-progress" max="100" value="0"></progress><div class="progress-foot"><span id="progress-detail"></span><span>依次查询 · 自动保存结果</span></div></section>
+      <section class="accounts-panel" aria-label="账号列表">
+        <div class="list-heading"><h2>账号列表 <span id="filtered-count"></span></h2><button id="refresh" class="quiet">刷新记录</button></div>
+        <div class="filters"><div id="filter-tabs" class="filter-tabs" role="group" aria-label="资格筛选"><button data-filter="all" aria-pressed="true">全部</button><button data-filter="free" aria-pressed="false">有免费试用</button><button data-filter="half" aria-pressed="false">有半价</button><button data-filter="unknown" aria-pressed="false">待确认</button><button data-filter="missing_token" aria-pressed="false">缺少凭据</button></div><label class="search"><span class="sr-only">搜索邮箱</span><input id="search" type="search" placeholder="搜索邮箱…" maxlength="256" autocomplete="off"></label></div>
+        <div class="selection-bar"><div><span id="selection-count">未选择账号</span><button id="clear-selection" class="text-button" hidden>清空</button></div><div class="run-actions"><button id="check-all">全量检测</button><button id="check-selected" class="primary" disabled>检测所选账号</button></div></div>
+        <div class="table-scroll"><table><caption class="sr-only">各账号最新优惠资格，时间使用浏览器本地时区</caption><thead><tr><th class="check-column"><input id="select-page" type="checkbox" aria-label="选择本页全部账号"></th><th>邮箱 / 注册记录状态</th><th>凭据</th><th>免费 1 个月</th><th>半价 1 个月</th><th>半价 2 个月</th><th>半价 3 个月</th><th>最近检查</th><th><span class="sr-only">详情</span></th></tr></thead><tbody id="account-rows"></tbody></table><div id="empty" class="empty" hidden><strong>没有符合条件的账号</strong><p>尝试调整筛选条件或搜索内容。</p></div></div>
+        <footer class="pagination"><span id="page-info"></span><div><button id="prev-page">上一页</button><span id="page-number">1</span><button id="next-page">下一页</button><label>每页 <select id="page-size"><option>25</option><option selected>50</option><option>100</option><option>200</option></select></label></div></footer>
+      </section>
+      <section class="tasks-panel" aria-labelledby="tasks-heading"><div class="list-heading"><h2 id="tasks-heading">最近任务</h2><span class="muted">最多显示 50 次 · 导出包含任务的四项活动记录</span></div><div id="task-list"></div><p id="no-tasks" class="empty" hidden>还没有检测任务。选择账号后，即可开始第一次查询。</p></section>
+      <footer class="page-footer"><span>结果仅反映查询时的活动资格；“符合”不代表已领取。</span><span id="timezone"></span></footer>
+    </div>
+  </main>
+  <dialog id="details"><div class="dialog-top"><h2>账号优惠详情</h2><button id="close-details" aria-label="关闭详情">关闭 ×</button></div><div id="detail-content"></div></dialog>
+</body>
+</html>

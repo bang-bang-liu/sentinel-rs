@@ -1,0 +1,31 @@
+[package]
+name = "sentinel-offers"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync", "signal"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wreq = { version = "=0.16.1", features = ["cookies", "gzip", "brotli", "deflate", "socks", "stream"] }
+futures-util = "0.3"
+wreq-util = "=0.2.0"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+fs2 = "0.4"
+same-file = "1"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+libc = "0.2"
+httpdate = "1"
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tokio = { version = "1", features = ["test-util"] }

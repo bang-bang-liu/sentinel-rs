@@ -1,0 +1,28 @@
+[Unit]
+Description=Sentinel Offers independent account dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sentinel
+Group=sentinel
+WorkingDirectory=/opt/sentinel-offers
+UMask=0077
+ExecStart=/opt/sentinel-offers/current/bin/sentinel-offers serve --source-db /var/lib/sentinel-rs/sentinel-rs.db --results-db /var/lib/sentinel-offers/offers.db --env-file /opt/sentinel-offers/.env --listen 127.0.0.1:8787 --admin-token-file /var/lib/sentinel-offers/admin.token
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# SQLite WAL readers may need access to the existing shared-memory sidecar.
+# Account database connections are enforced read-only by the application.
+ReadWritePaths=/var/lib/sentinel-offers /var/lib/sentinel-rs
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=192M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

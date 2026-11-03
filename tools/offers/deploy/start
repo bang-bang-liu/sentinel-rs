@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+command="${1:-serve}"
+if (($#)); then shift; fi
+case "$command" in
+  serve|check)
+    exec /opt/sentinel-offers/current/bin/sentinel-offers "$command" \
+      --source-db /var/lib/sentinel-rs/sentinel-rs.db \
+      --results-db /var/lib/sentinel-offers/offers.db \
+      --env-file /opt/sentinel-offers/.env "$@"
+    ;;
+  export)
+    exec /opt/sentinel-offers/current/bin/sentinel-offers export \
+      --results-db /var/lib/sentinel-offers/offers.db "$@"
+    ;;
+  *) printf 'Usage: start serve|check|export [options]\n' >&2; exit 1 ;;
+esac
