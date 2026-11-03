@@ -4,15 +4,16 @@
 
 ## 目录与边界
 
-源码仓库可克隆到任意工作目录，以下目录均为部署模板示例。
+统一源码仓库可克隆到任意工作目录，以下目录均为部署模板示例。源码合并后仍保留独立二进制、服务、配置和结果库。
 
 ```text
-/opt/sentinel-offers/
-  source/                     完整独立源码
+/opt/sentinel-rs/source/       统一源码仓库
+  tools/offers/               优惠工具独立 workspace
     backend/                  Rust 后端、测试、结果库迁移
     frontend/                 HTML、CSS、JavaScript UI
     deploy/                   构建、安装、启动和服务模板
     docs/                     设计与操作文档
+/opt/sentinel-offers/
   releases/<版本>/bin/         独立二进制
   current -> releases/<版本>
   start                       手动入口
@@ -103,10 +104,10 @@ OFFERS_LOG=info
 
 ## 构建、发布、回滚
 
-服务器使用独立 Rust 工具链。可先在新环境执行 `git clone https://github.com/bang-bang-liu/sentinel-rs-offers.git`；新项目拥有自己的 Cargo.lock 和 target。下面从已配置 Rust 的终端运行，非默认工具链安装路径应由部署方自行配置：
+服务器使用独立 Rust 工具链。新环境可将 `https://github.com/bang-bang-liu/sentinel-rs.git` 克隆到 `/opt/sentinel-rs/source`，然后进入 `tools/offers/`。本工具仍拥有自己的 `Cargo.lock` 和 `target`，不加入根注册包或重登工具的 workspace。下面从已配置 Rust 的终端运行，非默认工具链安装路径应由部署方自行配置：
 
 ```bash
-cd /opt/sentinel-offers/source
+cd /opt/sentinel-rs/source/tools/offers
 bash deploy/build.sh
 # 使用一个全新 release 名称，禁止覆盖旧版本
 sudo bash deploy/install.sh 0.1.1-YYYYMMDD-HHMMSS
@@ -114,6 +115,8 @@ systemctl enable --now sentinel-offers
 ```
 
 后续升级已运行服务时，安装完执行 `systemctl restart sentinel-offers`。编译需要 C/C++、CMake、libclang；本机 Windows 可在已安装 LLVM、NASM、CMake 和 Rust 的 MSVC 开发者终端运行 `deploy/build.ps1`。本次交付以服务器 Linux 构建实测为准。
+
+合并前的 `/opt/sentinel-offers/source` 可保留为历史源码，后续维护使用统一仓库。仅调整源码仓库无需执行安装、切换 `current` 或重启服务；既有运行配置和数据库继续沿用。
 
 停止工具：`systemctl stop sentinel-offers`。同时取消开机启动：`systemctl disable sentinel-offers`。只操作新工具服务，不影响原注册程序。
 

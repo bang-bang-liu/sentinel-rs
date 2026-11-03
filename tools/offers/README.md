@@ -2,6 +2,9 @@
 
 按 v1.1 设计开发的独立 Rust 账号优惠查询工具与 Web 看板（程序版本 0.1.1）。
 
+源码位于 `sentinel-rs` 仓库的 `tools/offers/`，作为独立 workspace 维护；原
+`sentinel-rs-offers` 仓库的提交历史已保留。入口和其他工具见[仓库说明](../../README.md)。
+
 读取现有 SQLite 账号库的邮箱、状态和 access_token，查询免费一个月及三种期限的 Plus 半价活动，写入独立 offers.db。源库连接强制只读。无注册、登录刷新、2FA、兑换或支付操作。
 
 ## 源码
@@ -15,7 +18,7 @@
 
 ## 构建
 
-Linux 需要 Rust、C/C++、CMake、libclang；执行 `bash deploy/build.sh`。Windows 环境要求与入口见 `docs/operations.md`。低内存服务器建议使用单任务编译。
+Linux 需要 Rust、C/C++、CMake、libclang。在统一仓库根目录执行 `bash tools/offers/deploy/build.sh`，或进入本目录执行 `bash deploy/build.sh`。Windows 环境要求与入口见 `docs/operations.md`。低内存服务器建议使用单任务编译。
 
 ## 使用
 

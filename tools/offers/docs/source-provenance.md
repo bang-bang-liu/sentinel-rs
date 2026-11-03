@@ -1,5 +1,7 @@
 # HTTP 源码来源记录
 
+本子项目已从 SG 的源码仓库导入 `sentinel-rs/tools/offers/`，源提交为公开版本 `b0b42b02ea8a7085bf599e5553f5e225340b3b43`。导入保留原仓库完整提交历史；合并后继续独立维护 HTTP 模块和 workspace，不增加对注册 crate 的依赖。
+
 本项目的 HTTP 传输层由 sentinel-rs 的 `src/flow/http.rs` 一次性复制并独立适配，来源项目所有者已授权本次复制和仓库发布。
 
 - 来源文件：`sentinel-rs/src/flow/http.rs`。
