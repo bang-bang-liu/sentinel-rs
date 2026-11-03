@@ -21,7 +21,7 @@ rand = "0.8"
 # 传输层：wreq（BoringSSL / btls）—— 真 Chrome TLS(JA3/JA4) + HTTP/2 指纹。
 # 版本必须钉死：wreq 6.0.0-rc 编译报 TcpConnector 缺失，wreq-util 3.0.0-rc 会拉
 # wreq 6，两者都不能用。0.16.1 + wreq-util 0.2.0 是已验证可编译可跑的组合。
-# 构建必须走仓库根的 build.ps1（BoringSSL 需要 MSVC + nasm + perl + libclang）。
+# 构建走仓库根的 build.ps1（准备 GNU/MSVC、CMake、NASM、libclang）。
 wreq = { version = "=0.16.1", features = ["cookies", "gzip", "brotli", "deflate", "socks"] }
 wreq-util = "=0.2.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

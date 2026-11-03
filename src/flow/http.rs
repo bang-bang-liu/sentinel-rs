@@ -9,8 +9,8 @@
 //!
 //! ## 构建要求
 //!
-//! BoringSSL 要本地编译：MSVC + nasm + Strawberry Perl + LLVM(libclang)。
-//! 必须用仓库根的 `build.ps1`（自动 call `vcvars64.bat` 并设 `LIBCLANG_PATH`）。
+//! BoringSSL 要本地编译：GNU/MSVC + CMake + NASM + libclang。
+//! 用仓库根的 `build.ps1` 准备编译环境。
 //!
 //! ## emulation
 //!
@@ -331,12 +331,24 @@ pub fn normalize_proxy_url(raw: &str) -> Result<String> {
     };
     let uri: wreq::Uri = with_scheme
         .parse()
-        .with_context(|| format!("代理地址不是合法 URL: {with_scheme}"))?;
+        .with_context(|| format!("代理地址不是合法 URL: {}", proxy_for_log(Some(&with_scheme))))?;
     let host = uri.host().unwrap_or_default();
     if host.is_empty() {
-        bail!("代理地址缺少 host/port: {with_scheme}");
+        bail!("代理地址缺少 host/port: {}", proxy_for_log(Some(&with_scheme)));
     }
     Ok(with_scheme)
+}
+
+/// 代理配置用于日志时隐藏用户名和密码，不改变实际连接配置。
+pub fn proxy_for_log(proxy: Option<&str>) -> String {
+    let Some(raw) = proxy.map(str::trim).filter(|raw| !raw.is_empty()) else {
+        return "<直连>".to_string();
+    };
+    let (scheme, authority) = raw.split_once("://").unwrap_or(("http", raw));
+    match authority.rsplit_once('@') {
+        Some((_, host)) => format!("{scheme}://<redacted>@{host}"),
+        None => raw.to_string(),
+    }
 }
 
 /// 把 `TURB_WREQ_EMULATION` 的字符串映射成 [`Profile`]。
@@ -400,6 +412,11 @@ impl Client {
         Self::build_with_emulation(user_agent, proxy, policy, None)
     }
 
+    /// 显式直连，不读取 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY 等系统代理。
+    pub fn build_direct(user_agent: &str, policy: RetryPolicy) -> Result<Self> {
+        Self::build_with_emulation(user_agent, None, policy, None)
+    }
+
     /// 指定 emulation 的构造入口（`None` = 走环境变量 / 默认档）。
     ///
     /// 设备指纹路径用这个把 TLS/HTTP2 档位和 UA 的 Chrome 版本对齐
@@ -420,7 +437,9 @@ impl Client {
             .cookie_provider(jar.clone())
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             // 手动跟随重定向，注册链需要看 302 的 Location。
-            .redirect(wreq::redirect::Policy::none());
+            .redirect(wreq::redirect::Policy::none())
+            // 代理由上层配置显式传入；None 必须表示直连，不能再自动读取系统代理。
+            .no_proxy();
 
         // 上层显式给的 UA 覆盖 profile 自带的那条（`SENTINEL_USER_AGENT` 仍然生效），
         // 其余 profile 头（sec-ch-ua / accept / accept-language …）保持不变。
@@ -432,7 +451,7 @@ impl Client {
             if !raw.trim().is_empty() {
                 let url = normalize_proxy_url(raw)?;
                 let proxy = wreq::Proxy::all(url.as_str())
-                    .with_context(|| format!("代理初始化失败: {url}"))?;
+                    .with_context(|| format!("代理初始化失败: {}", proxy_for_log(Some(&url))))?;
                 builder = builder.proxy(proxy);
             }
         }
@@ -440,7 +459,7 @@ impl Client {
         let inner = builder.build().context("构建 wreq HTTP client 失败")?;
         debug!(
             "[http] client 就绪：emulation={emulation:?} proxy={} timeout={DEFAULT_TIMEOUT_SECS}s",
-            proxy.map(str::trim).filter(|p| !p.is_empty()).unwrap_or("<直连>")
+            proxy_for_log(proxy)
         );
         Ok(Self {
             inner,

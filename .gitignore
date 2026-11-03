@@ -6,3 +6,25 @@ __pycache__/
 
 # 构建产物（dist 里放的是本地编译的 exe，不进版本库）
 /dist
+
+# Local credentials, environments and deployment logs
+/.env
+/.env.*
+!/.env.example
+/.cache
+/.venv
+
+# 私有数据库、日志、备份和源码打包文件
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.log
+/backups/
+/logs/
+*.tgz
+*.tar.gz

@@ -27,24 +27,28 @@ OpenAI 注册链路中 **Sentinel token** 的 Rust 重实现，加上一套可�
 
 ## 构建
 
-> ⚠️ **必须用 `build.ps1` 构建**（不要直接 `cargo build`）。
->
-> 传输层是 `wreq`（BoringSSL / `btls`），构建时要**现场编译 BoringSSL**：
->
-> - MSVC（VS2022 "使用 C++ 的桌面开发"）+ Windows SDK → `vcvars64.bat`
-> - **nasm**（BoringSSL 的汇编模块）
-> - **Strawberry Perl**（BoringSSL 的生成脚本）
-> - **LLVM / libclang**（`btls-sys` 的 bindgen，需要 `LIBCLANG_PATH`）
->
-> 普通 PowerShell 里直接 `cargo build` 会挂在 `btls-sys` 的 bindgen 或 `cl.exe` 上。
-> `build.ps1` 会自己 `call vcvars64.bat`、导入环境变量、设置 `LIBCLANG_PATH` 与 `PATH` 再跑 cargo。
-> 脚本里 `$VcVars` / `$LlvmDir` 两个路径是按常见安装位置写的，装到别处就改这两行。
+使用 `build.ps1` 构建。脚本准备 BoringSSL 所需的编译环境，并使用 `--locked` 保持依赖版本。
+默认在项目上两级的 `Venv` 中查找共享工具：
+
+| 目录 | 内容 |
+| --- | --- |
+| `Rust/cargo`、`Rust/rustup` | Rust GNU 工具链和 Cargo 缓存 |
+| `BuildTools/mingw64` | WinLibs GCC 16.2.0 / MinGW-w64 14.0.0 UCRT，内含 NASM 3.01 |
+| `BuildTools/nasm-2.16.03` | 独立 NASM，可供 MSVC 环境使用 |
+| `sentinel-build` | Python 工具环境：CMake 3.31.10、Ninja 1.13.0、libclang 18.1.1 |
+
+这些工具只加入构建进程的环境，不需要修改系统 PATH。GNU 构建会将运行时 DLL 复制到
+`target/release`，直接启动时无需激活 Python 或 Rust 环境。
+可用 `-ToolsRoot <目录>` 或 `SENTINEL_TOOLS_ROOT` 指定其它共享目录。
+
+已安装 MSVC 的机器也可使用 `-Toolchain MSVC`，脚本通过 `vswhere` 查找 C++ 工具；
+自定义位置可设置 `SENTINEL_VCVARS` 和 `LIBCLANG_PATH`。两种方式都需要 CMake、Ninja 和 NASM。
 
 ```powershell
 # 构建（唯一受支持的入口）
 .\build.ps1
 
-# 跑测试（同样需要 MSVC 环境，所以也走脚本）
+# 跑离线测试（同样走脚本准备编译环境）
 .\build.ps1 -Test
 
 # 额外参数透传给 cargo
@@ -56,6 +60,26 @@ OpenAI 注册链路中 **Sentinel token** 的 Rust 重实现，加上一套可�
 # 注册（默认 dry-run，只打印请求计划）
 .\target\release\sentinel-rs.exe register -n 1
 ```
+
+### 本机启动
+
+把邮箱 API 和代理配置保存在项目根目录 `.env` 中。程序启动时自动读取该文件；
+已有同名进程环境变量优先于 `.env`，`--proxy` 可显式覆盖代理。
+
+```powershell
+# 只验证配置和离线请求计划，不领取邮箱
+.\start.ps1 -DryRun
+
+# 真实注册一个账号，沿用 .env 的 SENTINEL_PROXY，开启 2FA
+.\start.ps1
+
+# 共注册 4 个，最多同时运行 2 个
+.\start.ps1 -Count 4 -Concurrency 2
+```
+
+双击 `启动-注册.cmd` 等同于 `start.ps1`，会真实注册一个账号；命令行参数同样支持
+`启动-注册.cmd 4 -Concurrency 2` 和 `启动-注册.cmd -DryRun`。
+入口脚本不再设置默认代理，也不会覆盖 `.env`。本项目是命令行程序，无需启动常驻 Web 服务。
 
 依赖版本是钉死的：`wreq = "=0.16.1"` + `wreq-util = "=0.2.0"`（`wreq` 6.x / `wreq-util` 3.x 的组合目前编不过）。
 默认 TLS emulation 是 `wreq_util::Emulation::Chrome149`，可用 `TURB_WREQ_EMULATION` 覆盖
@@ -71,6 +95,34 @@ $env:TURB_WREQ_EMULATION = "Chrome146"
 ```powershell
 .\target\release\tls_probe.exe --proxy socks5h://127.0.0.1:1080
 ```
+
+## Linux / VPS
+
+Linux 需要重新编译，不能使用 Windows 的 `.exe`。Debian 12 已部署验证所用的依赖为
+GCC/G++、CMake、Ninja、libclang、Git 和 Rust；不需要 Python 虚拟环境或浏览器。
+
+```bash
+# 安装系统构建依赖，并准备 Rust 工具链
+sudo apt-get install -y build-essential cmake ninja-build libclang-dev clang git pkg-config ca-certificates curl
+
+# 编译；默认限制为一个编译任务，降低小内存机器的峰值
+bash ./build.sh --bin sentinel-rs --bin tls_probe
+bash ./build.sh --test
+
+# 读取项目目录的 .env，离线验证
+bash ./start.sh --dry-run -n 4 --concurrency 2
+
+# 真实执行一个任务
+bash ./start.sh -n 1 --concurrency 1
+```
+
+`start.sh` 默认真实执行并开启 2FA，`--dry-run` 可覆盖为离线模式。邮箱 API 使用直连，
+注册和 Sentinel 请求使用 `SENTINEL_PROXY`。配置不写入代码，`.env` 权限应为 `600`。
+
+华为云 SG 的入口为 `/opt/sentinel-rs/start`，该入口自动切换到 `sentinel` 普通用户。
+配置保存在 `/opt/sentinel-rs/.env`，SQLite 数据保存在 `/var/lib/sentinel-rs`；
+代码版本位于 `/opt/sentinel-rs/releases`，`current` 指向已验证版本。更新代码不覆盖配置和数据。
+这是按任务运行的 CLI，任务完成后退出，无需开放入站业务端口。
 
 ## 配置
 
@@ -96,6 +148,8 @@ $env:TURB_WREQ_EMULATION = "Chrome146"
 ### 代理
 
 `--proxy` 或 `SENTINEL_PROXY`；支持 `socks5h://host:port`、`http://user:pass@host:port`。
+代理只用于注册和 Sentinel 请求。邮箱 API 的领邮箱、取码请求使用独立的直连客户端，
+不使用 `SENTINEL_PROXY` 或系统代理环境变量，也不共享注册客户端的 Cookie。
 需要**真浏览器级 TLS 指纹**，所以不要指望直连能稳定过 Cloudflare。
 
 ### 一次性看链路（不消耗邮箱）

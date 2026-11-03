@@ -232,7 +232,7 @@ LOGIN_MAIL_RESOLVE_TOKEN=<与MAIL_API_RELOGIN_TOKEN一致的密钥>
 
 ## 9. 部署与回滚
 
-实施时先确认 `mail-api.spxbase.com` 对应的实际主机、部署目录、运行版本和持久化数据库。已确认 Workbench 位于 SSH 别名 `AlibabaCloud` 的阿里云主机，数据挂载为 `/root/icloud-create-workbench/data:/app/data`；重登工具独立部署于 SG。
+实施时先确认 `mail.example.invalid` 对应的实际主机、部署目录、运行版本和持久化数据库。已确认 Workbench 位于 SSH 别名 `AlibabaCloud` 的阿里云主机，数据挂载为 `/root/icloud-create-workbench/data:/app/data`；重登工具独立部署于 SG。
 
 Workbench 仅部署本次代码增量，保留原数据目录、加密密钥和其他配置。迁移前使用现有备份工具生成一致性备份；不把本机开发数据库覆盖到生产实例。新表创建可重复执行。
 
